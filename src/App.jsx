@@ -1,3 +1,5 @@
+import MaterialsView from './views/MaterialsView';
+import AdminView from './views/AdminView';
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -157,6 +159,14 @@ export default function App() {
               <GpaView
                 courses={courses}
               />
+            )}
+            
+            {currentTab === 'materials' && (
+              <MaterialsView courses={courses} />
+            )}
+
+            {currentTab === 'admin' && (
+              <AdminView />
             )}
 
             {currentTab === 'settings' && (
