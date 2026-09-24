@@ -1,3 +1,4 @@
+import LoginView from './views/LoginView';
 import MaterialsView from './views/MaterialsView';
 import AdminView from './views/AdminView';
 import React, { useState, useEffect } from 'react';
@@ -28,6 +29,182 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [attendance, setAttendance] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [gpaData, setGpaData] = useState({ cgpa: 0, totalCredits: 0, semesters: [] });
+  const [adminData, setAdminData] = useState({ stats: null, users: [] });
+
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem('studentos_token');
+  });
+
+  const handleLogin = async ({ email, password }) => {
+    try {
+      const res = await fetch('http://localhost:5001/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await res.json();
+      if (result.success && result.data) {
+        localStorage.setItem('studentos_token', result.data.token);
+        setUser(result.data.user);
+        setUserRole(result.data.user.role);
+        setIsAuthenticated(true);
+      } else {
+        alert(result.message || 'Login failed');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      alert('Unable to reach authentication server');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('studentos_token');
+    setIsAuthenticated(false);
+  };
+
+   const handleMarkAttendance = async ({ courseId, isPresent }) => {
+    setCourses((prevCourses) =>
+      prevCourses.map((c) => {
+        if (c.id === courseId) {
+          const prevAtt = c.attendance || { present: 0, total: 0 };
+          return {
+            ...c,
+            attendance: {
+              present: isPresent ? prevAtt.present + 1 : prevAtt.present,
+              total: prevAtt.total + 1,
+            },
+          };
+        }
+        return c;
+      })
+    );
+
+    try {
+      await fetch('http://localhost:5001/api/attendance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('studentos_token')}`,
+        },
+        body: JSON.stringify({
+          courseId,
+          date: new Date().toISOString().split('T')[0],
+          status: isPresent ? 'Present' : 'Absent',
+        }),
+      });
+    } catch (err) {
+      console.warn('Backend attendance logging failed:', err);
+    }
+  };
+
+  const handleAddMaterial = async (materialData) => {
+    try {
+      const res = await fetch('http://localhost:5001/api/materials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('studentos_token')}`,
+        },
+        body: JSON.stringify(materialData),
+      });
+      const result = await res.json();
+      if (result.success && result.data) {
+        setMaterials((prev) => [result.data, ...(prev || [])]);
+      }
+    } catch (err) {
+      console.warn('Backend unavailable, saving locally:', err);
+      setMaterials((prev) => [{ id: 'mat_' + Date.now(), ...materialData }, ...(prev || [])]);
+    }
+  };
+
+  const handleDeleteMaterial = async (id) => {
+    try {
+      await fetch(`http://localhost:5001/api/materials/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('studentos_token')}`,
+        },
+      });
+      setMaterials((prev) => (prev || []).filter((m) => m.id !== id));
+    } catch (err) {
+      console.warn('Backend offline, deleting locally:', err);
+      setMaterials((prev) => (prev || []).filter((m) => m.id !== id));
+    }
+  };
+
+    // 2. Persist record to backend database
+
+  // --- Task Action Handlers ---
+  const handleAddTask = async (taskData) => {
+    try {
+      const response = await fetch('http://localhost:5001/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData),
+      });
+      const resData = await response.json();
+      if (resData.success && resData.data) {
+        setTasks((prev) => [resData.data, ...prev]);
+      }
+    } catch (err) {
+      console.warn('Backend offline, saving locally:', err);
+      const fallbackTask = { id: 't_' + Date.now(), ...taskData, status: 'Pending' };
+      setTasks((prev) => [fallbackTask, ...prev]);
+    }
+  };
+
+  const handleToggleTask = async (taskId) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/tasks/${taskId}/toggle`, {
+        method: 'PATCH',
+      });
+      const resData = await response.json();
+      if (resData.success && resData.data) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? resData.data : t))
+        );
+      }
+    } catch (err) {
+      console.warn('Backend offline, toggling locally:', err);
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, status: t.status === 'Completed' ? 'Pending' : 'Completed' }
+            : t
+        )
+      );
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await fetch(`http://localhost:5001/api/tasks/${taskId}`, { method: 'DELETE' });
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    } catch (err) {
+      console.warn('Backend offline, deleting locally:', err);
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    }
+  };
+
+  const handleRoleChange = async (newRole) => {
+    try {
+      const res = await fetch(`http://localhost:5001/api/auth/profile/${newRole.toLowerCase()}`);
+      const result = await res.json();
+      if (result.success && result.data) {
+        setUser(result.data);
+        setUserRole(result.data.role);
+        setCurrentTab(result.data.role === 'Admin' ? 'admin' : 'dashboard');
+      }
+    } catch (err) {
+      console.warn('Backend unavailable, switching role locally:', err);
+      setUserRole(newRole);
+      setCurrentTab(newRole === 'Admin' ? 'admin' : 'dashboard');
+    }
+  };
 
   // App-wide Persisted States
   const [user, setUser] = useState(() => {
@@ -67,6 +244,118 @@ export default function App() {
     localStorage.setItem('studentos_routine', JSON.stringify(routine));
   }, [routine]);
 
+  // Fetch courses directly from Express API
+  useEffect(() => {
+    fetch('http://localhost:5001/api/courses')
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success && Array.isArray(result.data)) {
+          setCourses(result.data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend unavailable, using local cache:', err);
+      });
+  }, []);
+
+  // Fetch live tasks from Express API
+  useEffect(() => {
+    fetch('http://localhost:5001/api/tasks')
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success && Array.isArray(result.data)) {
+          setTasks(result.data);
+        }
+      })
+      .catch((err) => console.warn('Backend unavailable, using local task cache:', err));
+  }, []);
+
+  // Fetch live routine from Express API
+  useEffect(() => {
+    fetch('http://localhost:5001/api/routine')
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success && Array.isArray(result.data)) {
+          setRoutine(result.data);
+        }
+      })
+      .catch((err) => console.warn('Backend unavailable, using local routine cache:', err));
+  }, []);
+
+  // Fetch live attendance records from Express API
+useEffect(() => {
+  fetch('http://localhost:5001/api/attendance')
+    .then((res) => res.json())
+    .then((result) => {
+      if (result.success && Array.isArray(result.data)) {
+        setAttendance(result.data);
+      }
+    })
+    .catch((err) => console.warn('Using local attendance cache:', err));
+}, []);
+
+// Fetch live study materials from Express API
+useEffect(() => {
+  fetch('http://localhost:5001/api/materials')
+    .then((res) => res.json())
+    .then((result) => {
+      if (result.success && Array.isArray(result.data)) {
+        setMaterials(result.data);
+      }
+    })
+    .catch((err) => console.warn('Using local materials cache:', err));
+}, []);
+
+// Fetch live GPA records from Express API
+useEffect(() => {
+  fetch('http://localhost:5001/api/gpa')
+    .then((res) => res.json())
+    .then((result) => {
+      if (result.success && result.data) {
+        setGpaData(result.data);
+      }
+    })
+    .catch((err) => console.warn('Using local GPA cache:', err));
+}, []);
+
+// Fetch Admin dashboard records
+useEffect(() => {
+  Promise.all([
+    fetch('http://localhost:5001/api/admin/stats').then((res) => res.json()),
+    fetch('http://localhost:5001/api/admin/users').then((res) => res.json()),
+  ])
+    .then(([statsRes, usersRes]) => {
+      setAdminData({
+        stats: statsRes.success ? statsRes.data : null,
+        users: usersRes.success ? usersRes.data : [],
+      });
+    })
+    .catch((err) => console.warn('Admin endpoints offline:', err));
+}, []);
+
+// Check JWT session on mount
+useEffect(() => {
+  const token = localStorage.getItem('studentos_token');
+  if (token) {
+    fetch('http://localhost:5001/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.success && result.data) {
+          setUser(result.data);
+          setUserRole(result.data.role);
+          setIsAuthenticated(true);
+        } else {
+          localStorage.removeItem('studentos_token');
+          setIsAuthenticated(false);
+        }
+      })
+      .catch(() => setIsAuthenticated(false));
+  }
+}, []);
+
+
   // Global Keyboard Shortcut: ⌘ K / Ctrl K
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -79,6 +368,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Check JWT session on app load
+  useEffect(() => {
+    const token = localStorage.getItem('studentos_token');
+    if (token) {
+      fetch('http://localhost:5001/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((result) => {
+          if (result.success && result.data) {
+            setUser(result.data);
+            setUserRole(result.data.role);
+            setIsAuthenticated(true);
+          } else {
+            localStorage.removeItem('studentos_token');
+            setIsAuthenticated(false);
+          }
+        })
+        .catch(() => setIsAuthenticated(false));
+    }
+  }, []);
+
   // Filter items for Global Search
   const searchResults = searchQuery.trim()
     ? [
@@ -88,6 +399,11 @@ export default function App() {
       ]
     : [];
 
+    // Gatekeeper: Show Login if unauthenticated
+  if (!isAuthenticated) {
+    return <LoginView onLogin={handleLogin} />;
+  }
+
   return (
     <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden">
       {/* Fixed Left Sidebar */}
@@ -95,7 +411,8 @@ export default function App() {
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         userRole={userRole}
-        onLogout={() => alert('Logged out successfully.')}
+        user={user}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -104,7 +421,7 @@ export default function App() {
         <Header
           user={user}
           userRole={userRole}
-          setUserRole={setUserRole}
+          setUserRole={handleRoleChange}
           onOpenSearch={() => setIsSearchOpen(true)}
           onOpenProfile={() => setCurrentTab('settings')}
         />
@@ -143,30 +460,42 @@ export default function App() {
             {currentTab === 'tasks' && (
               <TasksView
                 tasks={tasks}
-                setTasks={setTasks}
                 courses={courses}
+                onAddTask={handleAddTask}
+                onToggleTask={handleToggleTask}
+                onDeleteTask={handleDeleteTask}
               />
             )}
 
             {currentTab === 'attendance' && (
               <AttendanceView
                 courses={courses}
-                setCourses={setCourses}
+                attendance={attendance}
+                onMarkAttendance={handleMarkAttendance}
               />
             )}
 
             {currentTab === 'gpa' && (
               <GpaView
                 courses={courses}
+                gpaData={gpaData}
               />
             )}
-            
+
             {currentTab === 'materials' && (
-              <MaterialsView courses={courses} />
+              <MaterialsView
+                materials={materials}
+                courses={courses}  
+                onAddMaterial={handleAddMaterial}
+                onDeleteMaterial={handleDeleteMaterial}
+              />
             )}
 
             {currentTab === 'admin' && (
-              <AdminView />
+              <AdminView
+                stats={adminData.stats}
+                users={adminData.users}
+              />
             )}
 
             {currentTab === 'settings' && (

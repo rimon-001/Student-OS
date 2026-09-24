@@ -17,6 +17,7 @@ export default function Sidebar({
   currentTab, 
   setCurrentTab, 
   userRole, 
+  user,
   onLogout 
 }) {
   const menuItems = [
@@ -110,6 +111,26 @@ export default function Sidebar({
             — Keep going, Rimon!
           </span>
         </div>
+      </div>
+      {/* User Profile & Sign Out */}
+      <div className="p-4 border-t border-slate-800 flex items-center justify-between mt-auto">
+        <div className="flex flex-col truncate pr-2">
+          <span className="text-xs font-semibold text-slate-200 truncate">
+            {user?.name || 'User'}
+          </span>
+          <span className="text-[10px] text-slate-400 capitalize">
+            {userRole || 'Student'}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          title="Sign Out"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-rose-400 hover:text-white hover:bg-rose-600/30 border border-rose-500/40 rounded-lg transition-colors cursor-pointer"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Exit</span>
+        </button>
       </div>
     </aside>
   );

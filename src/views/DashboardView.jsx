@@ -38,7 +38,7 @@ export default function DashboardView({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            Good evening, {user.name.split(' ')[2] || 'Rimon'} <span className="animate-pulse">👋</span>
+            Good evening, {user?.name ? user.name.split(' ').slice(-1)[0] : 'Student'} <span className="animate-pulse">👋</span>
           </h2>
           <p className="text-sm text-slate-500 mt-0.5">Here's what's happening with your studies today.</p>
         </div>

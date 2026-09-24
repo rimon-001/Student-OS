@@ -1,23 +1,11 @@
 import React from 'react';
 import { CheckCircle2, XCircle, AlertTriangle, ShieldCheck, TrendingUp } from 'lucide-react';
 
-export default function AttendanceView({ courses, setCourses }) {
+export default function AttendanceView({ courses = [], onMarkAttendance }) {
   const markAttendance = (courseId, isPresent) => {
-    setCourses(
-      courses.map((course) => {
-        if (course.id === courseId) {
-          const current = course.attendance || { present: 0, total: 0 };
-          return {
-            ...course,
-            attendance: {
-              present: isPresent ? current.present + 1 : current.present,
-              total: current.total + 1,
-            },
-          };
-        }
-        return course;
-      })
-    );
+    if (onMarkAttendance) {
+      onMarkAttendance({ courseId, isPresent });
+    }
   };
 
   // Safe Bunk / Shortage Calculator (Minimum threshold = 75%)

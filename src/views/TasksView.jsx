@@ -10,7 +10,13 @@ import {
   Calendar 
 } from 'lucide-react';
 
-export default function TasksView({ tasks, setTasks, courses }) {
+export default function TasksView({
+  tasks,
+  courses,
+  onAddTask,
+  onToggleTask,
+  onDeleteTask
+}) {
   const [filterStatus, setFilterStatus] = useState('All');
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -21,47 +27,45 @@ export default function TasksView({ tasks, setTasks, courses }) {
   const [priority, setPriority] = useState('Medium');
   const [description, setDescription] = useState('');
 
+  const toggleTaskStatus = (id) => {
+    if (onToggleTask) {
+      onToggleTask(id);
+    }
+  };
+
   const filteredTasks = tasks.filter((task) => {
     if (filterStatus === 'All') return true;
     return task.status === filterStatus;
   });
-
-  const toggleTaskStatus = (id) => {
-    setTasks(
-      tasks.map((t) => {
-        if (t.id === id) {
-          const nextStatus = t.status === 'Completed' ? 'Pending' : 'Completed';
-          return { ...t, status: nextStatus };
-        }
-        return t;
-      })
-    );
-  };
 
   const handleAddTask = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     const matchedCourse = courses.find((c) => c.code === courseCode);
-    const newTask = {
-      id: 't_' + Date.now(),
+    const taskPayload = {
       title,
       courseId: matchedCourse?.id || 'c1',
-      courseName: matchedCourse ? matchedCourse.code : courseCode,
+      courseName: matchedCourse ? matchedCourse.name : courseCode,
       deadline,
       priority,
-      status: 'Pending',
       description,
+      status: 'Pending',
     };
 
-    setTasks([newTask, ...tasks]);
+    if (onAddTask) {
+      onAddTask(taskPayload);
+    }
+
     setTitle('');
     setDescription('');
     setShowAddModal(false);
   };
 
   const handleDeleteTask = (id) => {
-    setTasks(tasks.filter((t) => t.id !== id));
+    if (onDeleteTask) {
+      onDeleteTask(id);
+    }
   };
 
   const getPriorityStyle = (lvl) => {
